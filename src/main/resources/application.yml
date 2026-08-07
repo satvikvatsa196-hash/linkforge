@@ -1,6 +1,11 @@
 spring:
   application:
     name: linkforge
+
+app:
+  shortener:
+    strategy: ${SHORTENER_STRATEGY:sequential} # Options: sequential, random
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:linkforge}
     username: ${DB_USER:linkforge_user}

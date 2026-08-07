@@ -38,4 +38,27 @@ class GlobalExceptionHandler {
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
+    @ExceptionHandler(UrlNotFoundException::class)
+    fun handleUrlNotFoundException(ex: UrlNotFoundException): ResponseEntity<ErrorResponse> {
+        log.warn("URL not found: ${ex.message}")
+        val errorResponse = ErrorResponse(
+            timestamp = LocalDateTime.now(),
+            status = HttpStatus.NOT_FOUND.value(),
+            error = HttpStatus.NOT_FOUND.reasonPhrase,
+            message = ex.message ?: "URL not found"
+        )
+        return ResponseEntity(errorResponse, HttpStatus.NOT_FOUND)
+    }
+
+    @ExceptionHandler(InvalidUrlException::class)
+    fun handleInvalidUrlException(ex: InvalidUrlException): ResponseEntity<ErrorResponse> {
+        log.warn("Invalid URL: ${ex.message}")
+        val errorResponse = ErrorResponse(
+            timestamp = LocalDateTime.now(),
+            status = HttpStatus.BAD_REQUEST.value(),
+            error = HttpStatus.BAD_REQUEST.reasonPhrase,
+            message = ex.message ?: "Invalid URL provided"
+        )
+        return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
+    }
 }
