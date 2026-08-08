@@ -1,11 +1,16 @@
 spring:
   application:
     name: linkforge
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 app:
+  cache:
+    ttl: ${CACHE_TTL:24h}
   shortener:
     strategy: ${SHORTENER_STRATEGY:sequential} # Options: sequential, random
-
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:linkforge}
     username: ${DB_USER:linkforge_user}
@@ -22,15 +27,15 @@ app:
   flyway:
     enabled: true
     baseline-on-migrate: true
-
 server:
   port: ${SERVER_PORT:8080}
+
 
 management:
   endpoints:
     web:
       exposure:
-        include: health, info, metrics
+        include: health
   endpoint:
     health:
       show-details: always

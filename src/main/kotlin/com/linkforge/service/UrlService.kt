@@ -11,16 +11,50 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.data.redis.core.StringRedisTemplate
 import java.net.URI
+import java.time.Duration
+import java.util.concurrent.CompletableFuture
 
 @Service
 class UrlService(
     private val urlRepository: UrlRepository,
     private val shortCodeGenerator: ShortCodeGenerator,
-    @Value("\${app.base-url:http://localhost:8080}") private val baseUrl: String
+    private val redisTemplate: StringRedisTemplate,
+    @Value("\${app.base-url:http://localhost:8080}") private val baseUrl: String,
+    @Value("\${app.cache.ttl:24h}") private val cacheTtl: Duration
 ) {
     
     private val log = LoggerFactory.getLogger(UrlService::class.java)
+
+    private fun getCacheKey(shortCode: String) = "url:$shortCode"
+
+    private fun getFromCache(shortCode: String): String? {
+        return try {
+            redisTemplate.opsForValue().get(getCacheKey(shortCode))
+        } catch (e: Exception) {
+            log.warn("Redis cache read failed for {}: {}", shortCode, e.message)
+            null
+        }
+    }
+
+    private fun putInCache(shortCode: String, originalUrl: String) {
+        CompletableFuture.runAsync {
+            try {
+                redisTemplate.opsForValue().set(getCacheKey(shortCode), originalUrl, cacheTtl)
+            } catch (e: Exception) {
+                log.warn("Redis cache write failed for {}: {}", shortCode, e.message)
+            }
+        }
+    }
+
+    private fun deleteFromCache(shortCode: String) {
+        try {
+            redisTemplate.delete(getCacheKey(shortCode))
+        } catch (e: Exception) {
+            log.warn("Redis cache delete failed for {}: {}", shortCode, e.message)
+        }
+    }
 
     @Transactional
     fun shortenUrl(request: UrlShortenRequest): UrlShortenResponse {
@@ -34,22 +68,34 @@ class UrlService(
         // Check for existing URL
         urlRepository.findByOriginalUrl(originalUrl)?.let { existingUrl ->
             log.info("Found existing short URL for: {}", originalUrl)
+            // Populate cache
+            putInCache(existingUrl.shortCode, existingUrl.originalUrl)
             return toResponse(existingUrl)
         }
 
         // Generate actual short code using the selected strategy
-        val actualShortCode = shortCodeGenerator.generate(originalUrl)
+        val updatedUrl = shortCodeGenerator.generate(originalUrl)
 
-        // Get the updated/saved url from DB to retrieve its ID or created_at
-        val updatedUrl = urlRepository.findByShortCode(actualShortCode) 
-            ?: throw IllegalStateException("Could not find newly created URL with short code: $actualShortCode")
-
-        log.info("Created new short URL: {} -> {}", originalUrl, actualShortCode)
+        log.info("Created new short URL: {} -> {}", originalUrl, updatedUrl.shortCode)
+        
+        // Populate cache automatically
+        putInCache(updatedUrl.shortCode, originalUrl)
+        
         return toResponse(updatedUrl)
     }
 
     @Transactional
     fun getOriginalUrl(shortCode: String): String {
+        // Check cache first
+        val cachedUrl = getFromCache(shortCode)
+        if (cachedUrl != null) {
+            log.info("Cache hit for short code: {}", shortCode)
+            urlRepository.incrementClickCount(shortCode)
+            return cachedUrl
+        }
+        
+        log.info("Cache miss for short code: {}", shortCode)
+        
         val url = urlRepository.findByShortCode(shortCode)
             ?: throw UrlNotFoundException("Short URL not found for code: $shortCode")
 
@@ -57,8 +103,16 @@ class UrlService(
         url.clicksCount += 1
         urlRepository.save(url)
         
+        // Populate cache on miss
+        putInCache(shortCode, url.originalUrl)
+        
         log.info("Redirecting short code {} to {}", shortCode, url.originalUrl)
         return url.originalUrl
+    }
+
+    fun invalidateCache(shortCode: String) {
+        deleteFromCache(shortCode)
+        log.info("Invalidated cache for short code: {}", shortCode)
     }
 
     private fun toResponse(url: Url): UrlShortenResponse {

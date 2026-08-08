@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.*
+import java.util.Optional
 
 class SequentialShortCodeGeneratorTest {
 
@@ -20,23 +22,22 @@ class SequentialShortCodeGeneratorTest {
     }
 
     @Test
-    fun `generate should create temp url, get ID, encode, and save again`() {
+    fun `generate should fetch sequence, encode, insert natively, and return Url`() {
         val originalUrl = "https://example.com"
+        val expectedId = 1000L
+        val expectedShortCode = "G8"
+        val expectedUrl = Url(id = expectedId, originalUrl = originalUrl, shortCode = expectedShortCode)
         
-        `when`(urlRepository.save(any(Url::class.java) ?: Url(originalUrl=""))).thenAnswer { invocation ->
-            val url = invocation.getArgument<Url>(0)
-            if (url.id == 0L) {
-                // Mock returning a saved entity with ID 1000
-                Url(id = 1000L, originalUrl = url.originalUrl, shortCode = url.shortCode)
-            } else {
-                url // Return updated entity
-            }
-        }
+        `when`(urlRepository.getNextSequenceValue()).thenReturn(expectedId)
+        `when`(urlRepository.findById(expectedId)).thenReturn(Optional.of(expectedUrl))
 
-        val shortCode = generator.generate(originalUrl)
+        val generatedUrl = generator.generate(originalUrl)
 
         // 1000 encoded in Base62 is "G8"
-        assertEquals("G8", shortCode)
-        verify(urlRepository, times(2)).save(any(Url::class.java) ?: Url(originalUrl=""))
+        assertEquals(expectedShortCode, generatedUrl.shortCode)
+        
+        verify(urlRepository).getNextSequenceValue()
+        verify(urlRepository).insertUrlWithId(eq(expectedId), eq(originalUrl), eq(expectedShortCode))
+        verify(urlRepository).findById(expectedId)
     }
 }

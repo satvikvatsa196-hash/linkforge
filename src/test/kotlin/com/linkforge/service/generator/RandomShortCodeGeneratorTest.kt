@@ -25,10 +25,10 @@ class RandomShortCodeGeneratorTest {
         val originalUrl = "https://example.com"
         `when`(urlRepository.findByShortCode(anyString())).thenReturn(null) // No collisions
 
-        val shortCode = generator.generate(originalUrl)
+        val generatedUrl = generator.generate(originalUrl)
 
-        assertNotNull(shortCode)
-        assertEquals(7, shortCode.length)
+        assertNotNull(generatedUrl.shortCode)
+        assertEquals(7, generatedUrl.shortCode.length)
         
         // Mockito any() issues bypassed by just checking invocations
         verify(urlRepository, times(1)).findByShortCode(anyString())
@@ -45,10 +45,10 @@ class RandomShortCodeGeneratorTest {
             .thenReturn(Url(id=2, originalUrl="https://other.com", shortCode="coll2"))
             .thenReturn(null)
 
-        val shortCode = generator.generate(originalUrl)
+        val generatedUrl = generator.generate(originalUrl)
 
-        assertNotNull(shortCode)
-        assertEquals(7, shortCode.length)
+        assertNotNull(generatedUrl.shortCode)
+        assertEquals(7, generatedUrl.shortCode.length)
         
         verify(urlRepository, times(3)).findByShortCode(anyString())
         verify(urlRepository, times(1)).save(org.mockito.ArgumentMatchers.any(Url::class.java) ?: Url(originalUrl=""))

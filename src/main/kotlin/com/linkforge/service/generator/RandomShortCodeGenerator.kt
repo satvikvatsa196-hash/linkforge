@@ -6,6 +6,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.security.SecureRandom
 
+import org.springframework.dao.DataIntegrityViolationException
+
 @Component
 @ConditionalOnProperty(name = ["app.shortener.strategy"], havingValue = "random")
 class RandomShortCodeGenerator(
@@ -16,32 +18,29 @@ class RandomShortCodeGenerator(
     private val alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     private val length = 7
 
-    override fun generate(originalUrl: String): String {
-        var shortCode: String
-        var isUnique = false
+    override fun generate(originalUrl: String): Url {
         var attempts = 0
         val maxAttempts = 10
 
-        do {
-            shortCode = generateRandomString(length)
-            // Check for collision
+        while (attempts < maxAttempts) {
+            val shortCode = generateRandomString(length)
+            
+            // Fast check for collision
             if (urlRepository.findByShortCode(shortCode) == null) {
-                isUnique = true
+                val url = Url(
+                    originalUrl = originalUrl,
+                    shortCode = shortCode
+                )
+                try {
+                    return urlRepository.saveAndFlush(url)
+                } catch (e: DataIntegrityViolationException) {
+                    // Collision caught by DB unique constraint
+                }
             }
             attempts++
-        } while (!isUnique && attempts < maxAttempts)
-
-        if (!isUnique) {
-            throw RuntimeException("Could not generate a unique short code after $maxAttempts attempts")
         }
 
-        val url = Url(
-            originalUrl = originalUrl,
-            shortCode = shortCode
-        )
-        urlRepository.save(url)
-        
-        return shortCode
+        throw RuntimeException("Could not generate a unique short code after $maxAttempts attempts")
     }
 
     private fun generateRandomString(len: Int): String {
