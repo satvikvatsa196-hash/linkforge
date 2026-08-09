@@ -61,4 +61,16 @@ class GlobalExceptionHandler {
         )
         return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
     }
+
+    @ExceptionHandler(UrlExpiredException::class)
+    fun handleUrlExpiredException(ex: UrlExpiredException): ResponseEntity<ErrorResponse> {
+        log.warn("URL expired: ${ex.message}")
+        val errorResponse = ErrorResponse(
+            timestamp = LocalDateTime.now(),
+            status = HttpStatus.GONE.value(),
+            error = HttpStatus.GONE.reasonPhrase,
+            message = ex.message ?: "URL has expired"
+        )
+        return ResponseEntity(errorResponse, HttpStatus.GONE)
+    }
 }

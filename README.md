@@ -46,6 +46,15 @@ A scalable, high-performance URL shortener backend built with Kotlin and Spring 
 * **Duplicate Prevention:** Optimized checks using indexed original URLs to prevent redundant records.
 * **Validation & Exception Handling:** Global exception handling for validation (`@URL`) and application exceptions (400, 404).
 
+## URL Expiration
+Linkforge supports setting an expiration time when generating a short URL:
+* **Creation:** Provide an `expiresAt` ISO-8601 timestamp in the request body (e.g. `"expiresAt": "2026-09-01T12:00:00Z"`). If omitted, the URL never expires.
+* **Redirect Behavior:** 
+  - Active URLs redirect with `302 Found`.
+  - Expired URLs return `410 Gone` and will not redirect.
+  - Redis cache strictly respects expiration via native TTL and will never bypass expiration semantics.
+* **Cleanup:** A scheduled background task automatically identifies expired URLs, marks them as inactive, and completely invalidates their Redis cache entries, while keeping the core database record for historical purposes.
+
 ## Configuration
 
 Linkforge is configured primarily via environment variables. Start by copying `.env.example` to `.env`. 

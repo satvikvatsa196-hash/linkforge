@@ -23,5 +23,11 @@ class Url(
     var updatedAt: OffsetDateTime = OffsetDateTime.now(),
 
     @Column(name = "clicks_count")
-    var clicksCount: Long = 0
+    var clicksCount: Long = 0,
+
+    @Column(name = "expires_at")
+    var expiresAt: OffsetDateTime? = null,
+
+    @Column(name = "inactive")
+    var inactive: Boolean = false
 )

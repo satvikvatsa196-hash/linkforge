@@ -13,11 +13,11 @@ class SequentialShortCodeGenerator(
     private val urlRepository: UrlRepository
 ) : ShortCodeGenerator {
 
-    override fun generate(originalUrl: String): Url {
+    override fun generate(originalUrl: String, expiresAt: java.time.OffsetDateTime?): Url {
         val nextId = urlRepository.getNextSequenceValue()
         val actualShortCode = Base62Encoder.encode(nextId)
         
-        urlRepository.insertUrlWithId(nextId, originalUrl, actualShortCode)
+        urlRepository.insertUrlWithId(nextId, originalUrl, actualShortCode, expiresAt)
         
         return urlRepository.findByIdOrNull(nextId) 
             ?: throw IllegalStateException("Failed to retrieve inserted URL with id: $nextId")

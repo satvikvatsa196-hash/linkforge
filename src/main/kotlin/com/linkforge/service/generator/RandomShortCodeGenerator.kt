@@ -18,7 +18,7 @@ class RandomShortCodeGenerator(
     private val alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     private val length = 7
 
-    override fun generate(originalUrl: String): Url {
+    override fun generate(originalUrl: String, expiresAt: java.time.OffsetDateTime?): Url {
         var attempts = 0
         val maxAttempts = 10
 
@@ -29,7 +29,8 @@ class RandomShortCodeGenerator(
             if (urlRepository.findByShortCode(shortCode) == null) {
                 val url = Url(
                     originalUrl = originalUrl,
-                    shortCode = shortCode
+                    shortCode = shortCode,
+                    expiresAt = expiresAt
                 )
                 try {
                     return urlRepository.saveAndFlush(url)

@@ -3,6 +3,7 @@ package com.linkforge.service
 import com.linkforge.dto.UrlShortenRequest
 import com.linkforge.dto.UrlShortenResponse
 import com.linkforge.exception.InvalidUrlException
+import com.linkforge.exception.UrlExpiredException
 import com.linkforge.exception.UrlNotFoundException
 import com.linkforge.model.Url
 import com.linkforge.repository.UrlRepository
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.data.redis.core.StringRedisTemplate
 import java.net.URI
 import java.time.Duration
+import java.time.OffsetDateTime
 import java.util.concurrent.CompletableFuture
 
 @Service
@@ -38,10 +40,20 @@ class UrlService(
         }
     }
 
-    private fun putInCache(shortCode: String, originalUrl: String) {
+    private fun putInCache(shortCode: String, originalUrl: String, expiresAt: OffsetDateTime? = null) {
         CompletableFuture.runAsync {
             try {
-                redisTemplate.opsForValue().set(getCacheKey(shortCode), originalUrl, cacheTtl)
+                var ttl = cacheTtl
+                if (expiresAt != null) {
+                    val timeToExpiration = Duration.between(OffsetDateTime.now(), expiresAt)
+                    if (timeToExpiration < ttl) {
+                        ttl = timeToExpiration
+                    }
+                    if (ttl.isNegative || ttl.isZero) {
+                        return@runAsync
+                    }
+                }
+                redisTemplate.opsForValue().set(getCacheKey(shortCode), originalUrl, ttl)
             } catch (e: Exception) {
                 log.warn("Redis cache write failed for {}: {}", shortCode, e.message)
             }
@@ -59,6 +71,7 @@ class UrlService(
     @Transactional
     fun shortenUrl(request: UrlShortenRequest): UrlShortenResponse {
         val originalUrl = request.originalUrl
+        val expiresAt = request.expiresAt
         
         // Validate URL just in case, though DTO has @URL
         if (!isValidUrl(originalUrl)) {
@@ -68,18 +81,23 @@ class UrlService(
         // Check for existing URL
         urlRepository.findByOriginalUrl(originalUrl)?.let { existingUrl ->
             log.info("Found existing short URL for: {}", originalUrl)
+            if (existingUrl.expiresAt != expiresAt || existingUrl.inactive) {
+                existingUrl.expiresAt = expiresAt
+                existingUrl.inactive = false
+                urlRepository.save(existingUrl)
+            }
             // Populate cache
-            putInCache(existingUrl.shortCode, existingUrl.originalUrl)
+            putInCache(existingUrl.shortCode, existingUrl.originalUrl, existingUrl.expiresAt)
             return toResponse(existingUrl)
         }
 
         // Generate actual short code using the selected strategy
-        val updatedUrl = shortCodeGenerator.generate(originalUrl)
+        val updatedUrl = shortCodeGenerator.generate(originalUrl, expiresAt)
 
         log.info("Created new short URL: {} -> {}", originalUrl, updatedUrl.shortCode)
         
         // Populate cache automatically
-        putInCache(updatedUrl.shortCode, originalUrl)
+        putInCache(updatedUrl.shortCode, originalUrl, expiresAt)
         
         return toResponse(updatedUrl)
     }
@@ -99,12 +117,20 @@ class UrlService(
         val url = urlRepository.findByShortCode(shortCode)
             ?: throw UrlNotFoundException("Short URL not found for code: $shortCode")
 
+        if (url.inactive) {
+            throw UrlNotFoundException("Short URL is inactive")
+        }
+
+        if (url.expiresAt != null && url.expiresAt!!.isBefore(OffsetDateTime.now())) {
+            throw UrlExpiredException("Short URL has expired")
+        }
+
         // Increment click count
         url.clicksCount += 1
         urlRepository.save(url)
         
         // Populate cache on miss
-        putInCache(shortCode, url.originalUrl)
+        putInCache(shortCode, url.originalUrl, url.expiresAt)
         
         log.info("Redirecting short code {} to {}", shortCode, url.originalUrl)
         return url.originalUrl
@@ -121,7 +147,8 @@ class UrlService(
             shortCode = url.shortCode,
             originalUrl = url.originalUrl,
             shortUrl = shortUrl,
-            createdAt = url.createdAt
+            createdAt = url.createdAt,
+            expiresAt = url.expiresAt
         )
     }
 
