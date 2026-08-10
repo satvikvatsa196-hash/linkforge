@@ -1,6 +1,8 @@
 package com.linkforge.service
 
 import com.linkforge.dto.UrlShortenRequest
+import com.linkforge.exception.AliasAlreadyExistsException
+import com.linkforge.exception.InvalidAliasException
 import com.linkforge.exception.InvalidUrlException
 import com.linkforge.exception.UrlNotFoundException
 import com.linkforge.model.Url
@@ -41,7 +43,7 @@ class UrlServiceTest {
         
         `when`(redisTemplate.opsForValue()).thenReturn(valueOps)
         
-        urlService = UrlService(urlRepository, shortCodeGenerator, redisTemplate, "http://test.com", Duration.ofHours(24))
+        urlService = UrlService(urlRepository, shortCodeGenerator, redisTemplate, "http://test.com", Duration.ofHours(24), listOf("api", "health", "actuator", "swagger", "docs"))
     }
 
     @Test
@@ -138,6 +140,53 @@ class UrlServiceTest {
 
         assertThrows<UrlNotFoundException> {
             urlService.getOriginalUrl("invalid")
+        }
+        
+        verify(urlRepository, never()).save(any())
+    }
+
+    @Test
+    fun `shortenUrl should save and return custom alias`() {
+        val originalUrl = "https://example.com"
+        val customAlias = "my-custom-link"
+        val expectedSavedUrl = Url(id = 1L, originalUrl = originalUrl, shortCode = customAlias)
+
+        `when`(urlRepository.findByShortCode(customAlias)).thenReturn(null)
+        `when`(urlRepository.save(any(Url::class.java))).thenReturn(expectedSavedUrl)
+
+        val response = urlService.shortenUrl(UrlShortenRequest(originalUrl, alias = customAlias))
+
+        assertEquals(customAlias, response.shortCode)
+        assertEquals("http://test.com/my-custom-link", response.shortUrl)
+        assertEquals(originalUrl, response.originalUrl)
+
+        verify(urlRepository).save(any(Url::class.java))
+    }
+
+    @Test
+    fun `shortenUrl should throw AliasAlreadyExistsException if alias exists`() {
+        val originalUrl = "https://example.com"
+        val customAlias = "my-custom-link"
+
+        `when`(urlRepository.findByShortCode(customAlias)).thenReturn(Url(id = 1L, originalUrl = "https://other.com", shortCode = customAlias))
+
+        assertThrows<AliasAlreadyExistsException> {
+            urlService.shortenUrl(UrlShortenRequest(originalUrl, alias = customAlias))
+        }
+        
+        verify(urlRepository, never()).save(any())
+    }
+
+    @Test
+    fun `shortenUrl should throw InvalidAliasException for reserved alias`() {
+        val originalUrl = "https://example.com"
+        
+        assertThrows<InvalidAliasException> {
+            urlService.shortenUrl(UrlShortenRequest(originalUrl, alias = "api"))
+        }
+
+        assertThrows<InvalidAliasException> {
+            urlService.shortenUrl(UrlShortenRequest(originalUrl, alias = "HEALTH"))
         }
         
         verify(urlRepository, never()).save(any())

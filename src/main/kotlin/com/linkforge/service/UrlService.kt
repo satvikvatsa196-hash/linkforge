@@ -2,6 +2,8 @@ package com.linkforge.service
 
 import com.linkforge.dto.UrlShortenRequest
 import com.linkforge.dto.UrlShortenResponse
+import com.linkforge.exception.AliasAlreadyExistsException
+import com.linkforge.exception.InvalidAliasException
 import com.linkforge.exception.InvalidUrlException
 import com.linkforge.exception.UrlExpiredException
 import com.linkforge.exception.UrlNotFoundException
@@ -24,7 +26,8 @@ class UrlService(
     private val shortCodeGenerator: ShortCodeGenerator,
     private val redisTemplate: StringRedisTemplate,
     @Value("\${app.base-url:http://localhost:8080}") private val baseUrl: String,
-    @Value("\${app.cache.ttl:24h}") private val cacheTtl: Duration
+    @Value("\${app.cache.ttl:24h}") private val cacheTtl: Duration,
+    @Value("\${app.reserved-aliases:api,health,actuator,swagger,docs}") private val reservedAliases: List<String>
 ) {
     
     private val log = LoggerFactory.getLogger(UrlService::class.java)
@@ -72,13 +75,34 @@ class UrlService(
     fun shortenUrl(request: UrlShortenRequest): UrlShortenResponse {
         val originalUrl = request.originalUrl
         val expiresAt = request.expiresAt
+        val alias = request.alias
         
         // Validate URL just in case, though DTO has @URL
         if (!isValidUrl(originalUrl)) {
             throw InvalidUrlException("Invalid URL format: $originalUrl")
         }
 
-        // Check for existing URL
+        if (alias != null) {
+            if (reservedAliases.contains(alias.lowercase())) {
+                throw InvalidAliasException("Alias is reserved")
+            }
+            if (urlRepository.findByShortCode(alias) != null) {
+                throw AliasAlreadyExistsException("Alias already exists")
+            }
+            
+            // Create a new URL entry with the provided alias
+            val url = Url(
+                originalUrl = originalUrl,
+                shortCode = alias,
+                expiresAt = expiresAt
+            )
+            val updatedUrl = urlRepository.save(url)
+            log.info("Created new short URL with alias: {} -> {}", originalUrl, alias)
+            putInCache(alias, originalUrl, expiresAt)
+            return toResponse(updatedUrl)
+        }
+
+        // Check for existing URL (only if no custom alias was provided)
         urlRepository.findByOriginalUrl(originalUrl)?.let { existingUrl ->
             log.info("Found existing short URL for: {}", originalUrl)
             if (existingUrl.expiresAt != expiresAt || existingUrl.inactive) {

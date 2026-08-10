@@ -42,9 +42,10 @@ A scalable, high-performance URL shortener backend built with Kotlin and Spring 
 
 ## Features
 * **Shorten URL:** Convert long URLs into concise, shareable short codes.
+* **Custom Aliases:** Specify your own custom short code (e.g. `my-brand`) instead of using generated ones.
 * **Fast Redirection & Caching:** Extremely fast lookups utilizing Redis as a primary cache (Cache-Aside pattern) with asynchronous writes and seamless fallback to PostgreSQL.
 * **Duplicate Prevention:** Optimized checks using indexed original URLs to prevent redundant records.
-* **Validation & Exception Handling:** Global exception handling for validation (`@URL`) and application exceptions (400, 404).
+* **Validation & Exception Handling:** Global exception handling for validation (`@URL`) and application exceptions (400, 404, 409).
 
 ## URL Expiration
 Linkforge supports setting an expiration time when generating a short URL:

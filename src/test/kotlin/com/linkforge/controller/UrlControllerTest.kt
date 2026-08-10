@@ -61,4 +61,73 @@ class UrlControllerTest {
         )
             .andExpect(status().isBadRequest)
     }
+
+    @Test
+    fun `shortenUrl should return 200 for valid custom alias`() {
+        val request = UrlShortenRequest("https://example.com", alias = "my-valid-alias1")
+        val response = UrlShortenResponse(
+            shortCode = "my-valid-alias1",
+            originalUrl = "https://example.com",
+            shortUrl = "http://localhost:8080/my-valid-alias1",
+            createdAt = OffsetDateTime.now()
+        )
+
+        `when`(urlService.shortenUrl(request)).thenReturn(response)
+
+        mockMvc.perform(
+            post("/api/v1/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.shortCode").value("my-valid-alias1"))
+    }
+
+    @Test
+    fun `shortenUrl should return 400 for alias with spaces`() {
+        val request = UrlShortenRequest("https://example.com", alias = "my alias")
+
+        mockMvc.perform(
+            post("/api/v1/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `shortenUrl should return 400 for alias with special characters`() {
+        val request = UrlShortenRequest("https://example.com", alias = "my@alias!")
+
+        mockMvc.perform(
+            post("/api/v1/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `shortenUrl should return 400 for too short alias`() {
+        val request = UrlShortenRequest("https://example.com", alias = "ab")
+
+        mockMvc.perform(
+            post("/api/v1/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `shortenUrl should return 400 for too long alias`() {
+        val request = UrlShortenRequest("https://example.com", alias = "a".repeat(51))
+
+        mockMvc.perform(
+            post("/api/v1/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isBadRequest)
+    }
 }

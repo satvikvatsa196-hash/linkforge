@@ -73,4 +73,28 @@ class GlobalExceptionHandler {
         )
         return ResponseEntity(errorResponse, HttpStatus.GONE)
     }
+
+    @ExceptionHandler(AliasAlreadyExistsException::class)
+    fun handleAliasAlreadyExistsException(ex: AliasAlreadyExistsException): ResponseEntity<ErrorResponse> {
+        log.warn("Alias already exists: ${ex.message}")
+        val errorResponse = ErrorResponse(
+            timestamp = LocalDateTime.now(),
+            status = HttpStatus.CONFLICT.value(),
+            error = HttpStatus.CONFLICT.reasonPhrase,
+            message = ex.message ?: "Alias already exists"
+        )
+        return ResponseEntity(errorResponse, HttpStatus.CONFLICT)
+    }
+
+    @ExceptionHandler(InvalidAliasException::class)
+    fun handleInvalidAliasException(ex: InvalidAliasException): ResponseEntity<ErrorResponse> {
+        log.warn("Invalid alias: ${ex.message}")
+        val errorResponse = ErrorResponse(
+            timestamp = LocalDateTime.now(),
+            status = HttpStatus.BAD_REQUEST.value(),
+            error = HttpStatus.BAD_REQUEST.reasonPhrase,
+            message = ex.message ?: "Invalid alias provided"
+        )
+        return ResponseEntity(errorResponse, HttpStatus.BAD_REQUEST)
+    }
 }
