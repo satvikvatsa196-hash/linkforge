@@ -6,12 +6,18 @@ import com.linkforge.dto.UrlShortenResponse
 import com.linkforge.service.UrlService
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.`when`
+import org.mockito.Mockito.verify
+import org.mockito.ArgumentMatchers.anyString
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import com.linkforge.service.QrCodeService
+import com.linkforge.exception.UrlNotFoundException
+import com.linkforge.exception.UrlExpiredException
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 import java.time.OffsetDateTime
 
@@ -26,6 +32,9 @@ class UrlControllerTest {
 
     @MockBean
     private lateinit var urlService: UrlService
+
+    @MockBean
+    private lateinit var qrCodeService: QrCodeService
 
     @Test
     fun `shortenUrl should return 200 and short code`() {
@@ -129,5 +138,40 @@ class UrlControllerTest {
                 .content(objectMapper.writeValueAsString(request))
         )
             .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `getQrCode should return 200 and image png`() {
+        val shortCode = "myalias"
+        val fullUrl = "http://localhost:8080/myalias"
+        val mockQrBytes = byteArrayOf(1, 2, 3, 4, 5)
+
+        `when`(urlService.getUrlForQr(shortCode)).thenReturn(fullUrl)
+        `when`(qrCodeService.generateQrCode(fullUrl)).thenReturn(mockQrBytes)
+
+        mockMvc.perform(get("/api/v1/urls/$shortCode/qr"))
+            .andExpect(status().isOk)
+            .andExpect(header().string("Content-Type", MediaType.IMAGE_PNG_VALUE))
+            .andExpect(content().bytes(mockQrBytes))
+    }
+
+    @Test
+    fun `getQrCode should return 404 for invalid shortCode`() {
+        val shortCode = "nonexistent"
+
+        `when`(urlService.getUrlForQr(shortCode)).thenThrow(UrlNotFoundException("URL not found"))
+
+        mockMvc.perform(get("/api/v1/urls/$shortCode/qr"))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `getQrCode should return 410 for expired URL`() {
+        val shortCode = "expired"
+
+        `when`(urlService.getUrlForQr(shortCode)).thenThrow(UrlExpiredException("URL has expired"))
+
+        mockMvc.perform(get("/api/v1/urls/$shortCode/qr"))
+            .andExpect(status().isGone)
     }
 }

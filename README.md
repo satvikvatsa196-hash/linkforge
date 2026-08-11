@@ -45,7 +45,8 @@ A scalable, high-performance URL shortener backend built with Kotlin and Spring 
 * **Custom Aliases:** Specify your own custom short code (e.g. `my-brand`) instead of using generated ones.
 * **Fast Redirection & Caching:** Extremely fast lookups utilizing Redis as a primary cache (Cache-Aside pattern) with asynchronous writes and seamless fallback to PostgreSQL.
 * **Duplicate Prevention:** Optimized checks using indexed original URLs to prevent redundant records.
-* **Validation & Exception Handling:** Global exception handling for validation (`@URL`) and application exceptions (400, 404, 409).
+* **QR Code Generation:** Generate downloadable QR codes (`image/png`) for any active shortened URL lazily upon request, cached in Redis for fast retrieval.
+* **Validation & Exception Handling:** Global exception handling for validation (`@URL`) and application exceptions (400, 404, 409, 410).
 
 ## URL Expiration
 Linkforge supports setting an expiration time when generating a short URL:
@@ -68,6 +69,16 @@ app:
     ttl: 24h
 ```
 Override via `.env` with `CACHE_TTL=24h`.
+
+### QR Code Configuration
+Customize the dimensions of the generated QR codes:
+```yaml
+app:
+  qr:
+    width: 250
+    height: 250
+```
+Override via `.env` with `QR_WIDTH=250` and `QR_HEIGHT=250`.
 
 ### Generation Strategies:
 * `sequential` (default): Uses auto-incrementing database IDs encoded in Base62. Safe and ensures optimal density.

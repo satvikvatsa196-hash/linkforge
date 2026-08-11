@@ -10,6 +10,9 @@ app:
   cache:
     ttl: ${CACHE_TTL:24h}
   reserved-aliases: api,health,actuator,swagger,docs
+  qr:
+    width: ${QR_WIDTH:250}
+    height: ${QR_HEIGHT:250}
   shortener:
     strategy: ${SHORTENER_STRATEGY:sequential} # Options: sequential, random
   datasource:

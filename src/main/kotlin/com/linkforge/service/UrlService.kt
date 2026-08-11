@@ -165,6 +165,22 @@ class UrlService(
         log.info("Invalidated cache for short code: {}", shortCode)
     }
 
+    @Transactional(readOnly = true)
+    fun getUrlForQr(shortCode: String): String {
+        val url = urlRepository.findByShortCode(shortCode)
+            ?: throw UrlNotFoundException("Short URL not found for code: $shortCode")
+
+        if (url.inactive) {
+            throw UrlNotFoundException("Short URL is inactive")
+        }
+
+        if (url.expiresAt != null && url.expiresAt!!.isBefore(OffsetDateTime.now())) {
+            throw UrlExpiredException("Short URL has expired")
+        }
+
+        return "$baseUrl/$shortCode"
+    }
+
     private fun toResponse(url: Url): UrlShortenResponse {
         val shortUrl = "$baseUrl/${url.shortCode}"
         return UrlShortenResponse(
