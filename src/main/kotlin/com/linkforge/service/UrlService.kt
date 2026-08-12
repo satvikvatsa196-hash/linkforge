@@ -11,6 +11,12 @@ import com.linkforge.model.Url
 import com.linkforge.repository.UrlRepository
 import com.linkforge.service.generator.ShortCodeGenerator
 import org.slf4j.LoggerFactory
+
+data class UrlRedirectInfo(
+    val id: Long,
+    val originalUrl: String
+)
+
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -34,16 +40,22 @@ class UrlService(
 
     private fun getCacheKey(shortCode: String) = "url:$shortCode"
 
-    private fun getFromCache(shortCode: String): String? {
+    private fun getFromCache(shortCode: String): UrlRedirectInfo? {
         return try {
-            redisTemplate.opsForValue().get(getCacheKey(shortCode))
+            val cached = redisTemplate.opsForValue().get(getCacheKey(shortCode)) ?: return null
+            val parts = cached.split("|", limit = 2)
+            if (parts.size == 2) {
+                UrlRedirectInfo(parts[0].toLong(), parts[1])
+            } else {
+                null // Legacy format, force miss
+            }
         } catch (e: Exception) {
             log.warn("Redis cache read failed for {}: {}", shortCode, e.message)
             null
         }
     }
 
-    private fun putInCache(shortCode: String, originalUrl: String, expiresAt: OffsetDateTime? = null) {
+    private fun putInCache(shortCode: String, originalUrl: String, urlId: Long, expiresAt: OffsetDateTime? = null) {
         CompletableFuture.runAsync {
             try {
                 var ttl = cacheTtl
@@ -56,7 +68,7 @@ class UrlService(
                         return@runAsync
                     }
                 }
-                redisTemplate.opsForValue().set(getCacheKey(shortCode), originalUrl, ttl)
+                redisTemplate.opsForValue().set(getCacheKey(shortCode), "$urlId|$originalUrl", ttl)
             } catch (e: Exception) {
                 log.warn("Redis cache write failed for {}: {}", shortCode, e.message)
             }
@@ -98,7 +110,7 @@ class UrlService(
             )
             val updatedUrl = urlRepository.save(url)
             log.info("Created new short URL with alias: {} -> {}", originalUrl, alias)
-            putInCache(alias, originalUrl, expiresAt)
+            putInCache(alias, originalUrl, updatedUrl.id, expiresAt)
             return toResponse(updatedUrl)
         }
 
@@ -111,7 +123,7 @@ class UrlService(
                 urlRepository.save(existingUrl)
             }
             // Populate cache
-            putInCache(existingUrl.shortCode, existingUrl.originalUrl, existingUrl.expiresAt)
+            putInCache(existingUrl.shortCode, existingUrl.originalUrl, existingUrl.id, existingUrl.expiresAt)
             return toResponse(existingUrl)
         }
 
@@ -121,13 +133,13 @@ class UrlService(
         log.info("Created new short URL: {} -> {}", originalUrl, updatedUrl.shortCode)
         
         // Populate cache automatically
-        putInCache(updatedUrl.shortCode, originalUrl, expiresAt)
+        putInCache(updatedUrl.shortCode, originalUrl, updatedUrl.id, expiresAt)
         
         return toResponse(updatedUrl)
     }
 
     @Transactional
-    fun getOriginalUrl(shortCode: String): String {
+    fun getOriginalUrl(shortCode: String): UrlRedirectInfo {
         // Check cache first
         val cachedUrl = getFromCache(shortCode)
         if (cachedUrl != null) {
@@ -154,10 +166,10 @@ class UrlService(
         urlRepository.save(url)
         
         // Populate cache on miss
-        putInCache(shortCode, url.originalUrl, url.expiresAt)
+        putInCache(shortCode, url.originalUrl, url.id, url.expiresAt)
         
         log.info("Redirecting short code {} to {}", shortCode, url.originalUrl)
-        return url.originalUrl
+        return UrlRedirectInfo(url.id, url.originalUrl)
     }
 
     fun invalidateCache(shortCode: String) {

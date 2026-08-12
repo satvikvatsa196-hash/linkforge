@@ -2,8 +2,12 @@ package com.linkforge.controller
 
 import com.linkforge.exception.UrlNotFoundException
 import com.linkforge.service.UrlService
+import com.linkforge.service.UrlRedirectInfo
+import com.linkforge.service.ClickTrackingService
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.`when`
+import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.eq
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
@@ -21,12 +25,16 @@ class RedirectControllerTest {
     @MockBean
     private lateinit var urlService: UrlService
 
+    @MockBean
+    private lateinit var clickTrackingService: ClickTrackingService
+
     @Test
     fun `redirect should return 302 Found and location header`() {
         val shortCode = "1"
         val originalUrl = "https://example.com"
+        val redirectInfo = UrlRedirectInfo(1L, originalUrl)
         
-        `when`(urlService.getOriginalUrl(shortCode)).thenReturn(originalUrl)
+        `when`(urlService.getOriginalUrl(shortCode)).thenReturn(redirectInfo)
 
         mockMvc.perform(get("/$shortCode"))
             .andExpect(status().isFound)

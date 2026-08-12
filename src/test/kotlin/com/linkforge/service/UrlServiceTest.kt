@@ -77,7 +77,7 @@ class UrlServiceTest {
         
         // Wait briefly for CompletableFuture to execute in test (since putInCache is async)
         Thread.sleep(100)
-        verify(valueOps).set(safeEq("url:random"), safeEq(originalUrl), any(Duration::class.java) ?: Duration.ofHours(24))
+        verify(valueOps).set(safeEq("url:random"), safeEq("1|https://example.com"), any(Duration::class.java) ?: Duration.ofHours(24))
     }
 
     @Test
@@ -101,21 +101,23 @@ class UrlServiceTest {
 
         val result = urlService.getOriginalUrl("1")
 
-        assertEquals("https://example.com", result)
+        assertEquals("https://example.com", result.originalUrl)
+        assertEquals(1L, result.id)
         assertEquals(6, existingUrl.clicksCount)
         verify(urlRepository).save(existingUrl)
         
         Thread.sleep(100)
-        verify(valueOps).set(safeEq("url:1"), safeEq("https://example.com"), any(Duration::class.java) ?: Duration.ofHours(24))
+        verify(valueOps).set(safeEq("url:1"), safeEq("1|https://example.com"), any(Duration::class.java) ?: Duration.ofHours(24))
     }
 
     @Test
     fun `getOriginalUrl should return URL from cache on hit and update DB minimally`() {
-        `when`(valueOps.get("url:1")).thenReturn("https://example.com")
+        `when`(valueOps.get("url:1")).thenReturn("1|https://example.com")
 
         val result = urlService.getOriginalUrl("1")
 
-        assertEquals("https://example.com", result)
+        assertEquals("https://example.com", result.originalUrl)
+        assertEquals(1L, result.id)
         verify(urlRepository).incrementClickCount("1")
         verify(urlRepository, never()).findByShortCode(anyString())
     }
@@ -130,7 +132,8 @@ class UrlServiceTest {
         val result = urlService.getOriginalUrl("1")
 
         // Should successfully return the URL despite the exception
-        assertEquals("https://example.com", result)
+        assertEquals("https://example.com", result.originalUrl)
+        assertEquals(1L, result.id)
         verify(urlRepository).findByShortCode("1")
     }
 

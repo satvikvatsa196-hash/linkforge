@@ -45,6 +45,7 @@ A scalable, high-performance URL shortener backend built with Kotlin and Spring 
 * **Custom Aliases:** Specify your own custom short code (e.g. `my-brand`) instead of using generated ones.
 * **Fast Redirection & Caching:** Extremely fast lookups utilizing Redis as a primary cache (Cache-Aside pattern) with asynchronous writes and seamless fallback to PostgreSQL.
 * **Duplicate Prevention:** Optimized checks using indexed original URLs to prevent redundant records.
+* **Analytics & Click Tracking:** Captures detailed usage metrics for shortened URLs including total clicks, first/last click times, and daily click distributions.
 * **QR Code Generation:** Generate downloadable QR codes (`image/png`) for any active shortened URL lazily upon request, cached in Redis for fast retrieval.
 * **Validation & Exception Handling:** Global exception handling for validation (`@URL`) and application exceptions (400, 404, 409, 410).
 
@@ -56,6 +57,11 @@ Linkforge supports setting an expiration time when generating a short URL:
   - Expired URLs return `410 Gone` and will not redirect.
   - Redis cache strictly respects expiration via native TTL and will never bypass expiration semantics.
 * **Cleanup:** A scheduled background task automatically identifies expired URLs, marks them as inactive, and completely invalidates their Redis cache entries, while keeping the core database record for historical purposes.
+
+## Analytics & Click Tracking
+Linkforge records successful redirects to provide engagement analytics, accessible via `/api/v1/urls/{shortCode}/analytics`.
+* **Captured Data:** Timestamp, anonymized IP address, User-Agent, and Referrer. 
+* **Privacy & IP Hashing:** To protect user privacy and comply with data protection regulations, raw IP addresses are **never** stored permanently. Instead, they are synchronously hashed using SHA-256 with a configurable salt (`app.security.ip-salt`) prior to database insertion. This ensures unique visitor tracking is possible for analytics without exposing PII (Personally Identifiable Information).
 
 ## Configuration
 
@@ -79,6 +85,15 @@ app:
     height: 250
 ```
 Override via `.env` with `QR_WIDTH=250` and `QR_HEIGHT=250`.
+
+### Security Configuration
+Configure the salt used for hashing IP addresses in the click tracking module to ensure privacy:
+```yaml
+app:
+  security:
+    ip-salt: default-salt-value-for-dev
+```
+Override via `.env` with `IP_SALT=your-secure-salt`.
 
 ### Generation Strategies:
 * `sequential` (default): Uses auto-incrementing database IDs encoded in Base62. Safe and ensures optimal density.

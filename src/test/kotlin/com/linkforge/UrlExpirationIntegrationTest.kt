@@ -108,7 +108,7 @@ class UrlExpirationIntegrationTest(
         )
         urlRepository.save(url)
 
-        redisTemplate.opsForValue().set("url:$shortCode", originalUrl)
+        redisTemplate.opsForValue().set("url:$shortCode", "${url.id}|$originalUrl")
         assertThat(redisTemplate.hasKey("url:$shortCode")).isTrue()
 
         urlCleanupService.cleanupExpiredUrls()
