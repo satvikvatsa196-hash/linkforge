@@ -1,38 +1,41 @@
 package com.linkforge.service
 
-import com.linkforge.model.ClickEvent
-import com.linkforge.repository.ClickEventRepository
+import com.linkforge.dto.ClickEventMessage
+import com.linkforge.config.RabbitMQConfig
 import com.linkforge.util.IpHashUtil
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
+import org.springframework.amqp.rabbit.core.RabbitTemplate
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 
 @Service
 class ClickTrackingService(
-    private val clickEventRepository: ClickEventRepository,
+    private val rabbitTemplate: RabbitTemplate,
     private val ipHashUtil: IpHashUtil
 ) {
     private val log = LoggerFactory.getLogger(ClickTrackingService::class.java)
 
-    @Transactional
-    fun recordClick(urlId: Long, request: HttpServletRequest) {
+    fun recordClick(urlId: Long, shortCode: String, request: HttpServletRequest) {
         try {
             val ipAddress = getClientIp(request)
             val ipHash = ipHashUtil.hashIp(ipAddress)
             val userAgent = request.getHeader("User-Agent")?.take(512)
             val referrer = request.getHeader("Referer")?.take(512)
 
-            val clickEvent = ClickEvent(
+            val event = ClickEventMessage(
                 urlId = urlId,
+                shortCode = shortCode,
+                timestamp = OffsetDateTime.now(),
                 ipHash = ipHash,
                 userAgent = userAgent,
                 referrer = referrer
             )
             
-            clickEventRepository.save(clickEvent)
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY, event)
+            log.debug("Published click event for shortCode: {}", shortCode)
         } catch (e: Exception) {
-            log.error("Failed to record click for urlId: $urlId", e)
+            log.error("Failed to publish click event for shortCode: $shortCode", e)
         }
     }
 

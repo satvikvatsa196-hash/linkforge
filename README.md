@@ -7,6 +7,7 @@ A scalable, high-performance URL shortener backend built with Kotlin and Spring 
 * **Framework:** Spring Boot 3
 * **Database:** PostgreSQL
 * **Caching:** Redis
+* **Message Broker:** RabbitMQ
 * **Migrations:** Flyway
 * **API Documentation:** SpringDoc OpenAPI (Swagger)
 * **Containerization:** Docker Compose
@@ -60,8 +61,9 @@ Linkforge supports setting an expiration time when generating a short URL:
 
 ## Analytics & Click Tracking
 Linkforge records successful redirects to provide engagement analytics, accessible via `/api/v1/urls/{shortCode}/analytics`.
+* **Asynchronous Processing:** To ensure redirect latency is unaffected by database writes, click tracking is completely offloaded to a RabbitMQ message broker. The redirect returns immediately, making analytics eventually consistent. Durable queues, DLQ (Dead-Letter Queues), and retry mechanisms guarantee reliable delivery even in the event of database outages.
 * **Captured Data:** Timestamp, anonymized IP address, User-Agent, and Referrer. 
-* **Privacy & IP Hashing:** To protect user privacy and comply with data protection regulations, raw IP addresses are **never** stored permanently. Instead, they are synchronously hashed using SHA-256 with a configurable salt (`app.security.ip-salt`) prior to database insertion. This ensures unique visitor tracking is possible for analytics without exposing PII (Personally Identifiable Information).
+* **Privacy & IP Hashing:** To protect user privacy and comply with data protection regulations, raw IP addresses are **never** stored permanently. Instead, they are synchronously hashed using SHA-256 with a configurable salt (`app.security.ip-salt`) prior to being published to RabbitMQ. This ensures unique visitor tracking is possible for analytics without exposing PII (Personally Identifiable Information).
 
 ## Configuration
 

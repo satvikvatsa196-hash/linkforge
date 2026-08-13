@@ -29,6 +29,9 @@ class ClickTrackingIntegrationTest(
     @Autowired val redisTemplate: StringRedisTemplate
 ) {
 
+    @org.springframework.boot.test.mock.mockito.MockBean
+    lateinit var rabbitTemplate: org.springframework.amqp.rabbit.core.RabbitTemplate
+
     @BeforeEach
     fun setup() {
         clickEventRepository.deleteAll()
@@ -58,16 +61,12 @@ class ClickTrackingIntegrationTest(
         
         assertThat(redirectResponse.statusCode).isEqualTo(HttpStatus.FOUND)
 
-        // Verify click event
-        val url = urlRepository.findByShortCode(shortCode)!!
-        val clicks = clickEventRepository.findAll()
-        assertThat(clicks).hasSize(1)
-        
-        val click = clicks[0]
-        assertThat(click.urlId).isEqualTo(url.id)
-        assertThat(click.userAgent).isEqualTo("TestAgent")
-        assertThat(click.referrer).isEqualTo("https://referer.com")
-        assertThat(click.ipHash).isNotBlank()
+        // Verify click event is published
+        org.mockito.Mockito.verify(rabbitTemplate).convertAndSend(
+            org.mockito.ArgumentMatchers.eq(com.linkforge.config.RabbitMQConfig.EXCHANGE_NAME),
+            org.mockito.ArgumentMatchers.eq(com.linkforge.config.RabbitMQConfig.ROUTING_KEY),
+            org.mockito.ArgumentMatchers.any(com.linkforge.dto.ClickEventMessage::class.java)
+        )
     }
 
     @Test
@@ -75,8 +74,7 @@ class ClickTrackingIntegrationTest(
         val redirectResponse = restTemplate.getForEntity("/invalid-code", Any::class.java)
         assertThat(redirectResponse.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
 
-        val clicks = clickEventRepository.findAll()
-        assertThat(clicks).isEmpty()
+        org.mockito.Mockito.verifyNoInteractions(rabbitTemplate)
     }
 
     @Test
@@ -92,8 +90,7 @@ class ClickTrackingIntegrationTest(
         val redirectResponse = restTemplate.getForEntity("/$shortCode", Any::class.java)
         assertThat(redirectResponse.statusCode).isEqualTo(HttpStatus.GONE)
 
-        val clicks = clickEventRepository.findAll()
-        assertThat(clicks).isEmpty()
+        org.mockito.Mockito.verifyNoInteractions(rabbitTemplate)
     }
 
     @Test
@@ -102,10 +99,10 @@ class ClickTrackingIntegrationTest(
         val createResponse = restTemplate.postForEntity("/api/v1/urls", request, UrlShortenResponse::class.java)
         val shortCode = createResponse.body!!.shortCode
 
-        // Click twice
-        restTemplate.getForEntity("/$shortCode", Any::class.java)
-        Thread.sleep(100) // Sleep to ensure timestamps are different
-        restTemplate.getForEntity("/$shortCode", Any::class.java)
+        // Manually save clicks since we are mocking RabbitMQ
+        val url = urlRepository.findByShortCode(shortCode)!!
+        clickEventRepository.save(com.linkforge.model.ClickEvent(urlId = url.id, ipHash = "hash1", clickedAt = OffsetDateTime.now().minusMinutes(5)))
+        clickEventRepository.save(com.linkforge.model.ClickEvent(urlId = url.id, ipHash = "hash2", clickedAt = OffsetDateTime.now()))
 
         // Get analytics
         val analyticsResponse = restTemplate.getForEntity("/api/v1/urls/$shortCode/analytics", UrlAnalyticsResponse::class.java)

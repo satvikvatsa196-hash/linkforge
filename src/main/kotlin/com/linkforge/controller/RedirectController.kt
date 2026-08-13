@@ -24,7 +24,7 @@ class RedirectController(
     fun redirect(@PathVariable shortCode: String, request: HttpServletRequest): ResponseEntity<Void> {
         val redirectInfo = urlService.getOriginalUrl(shortCode)
         
-        clickTrackingService.recordClick(redirectInfo.id, request)
+        clickTrackingService.recordClick(redirectInfo.id, shortCode, request)
         
         return ResponseEntity
             .status(HttpStatus.FOUND)
