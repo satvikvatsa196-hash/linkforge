@@ -22,6 +22,11 @@ class ClickEventConsumerTest {
     @InjectMocks
     private lateinit var clickEventConsumer: ClickEventConsumer
 
+    private fun anyClickEvent(): com.linkforge.model.ClickEvent {
+        org.mockito.ArgumentMatchers.any(com.linkforge.model.ClickEvent::class.java)
+        return com.linkforge.model.ClickEvent(urlId = 0L, ipHash = "")
+    }
+
     @Test
     fun `processClickEvent should save event to repository`() {
         // Arrange
@@ -38,7 +43,7 @@ class ClickEventConsumerTest {
         clickEventConsumer.processClickEvent(message)
 
         // Assert
-        Mockito.verify(clickEventRepository).save(org.mockito.ArgumentMatchers.any(com.linkforge.model.ClickEvent::class.java))
+        Mockito.verify(clickEventRepository).save(anyClickEvent())
     }
 
     @Test
@@ -53,7 +58,7 @@ class ClickEventConsumerTest {
             referrer = null
         )
 
-        Mockito.`when`(clickEventRepository.save(org.mockito.ArgumentMatchers.any(com.linkforge.model.ClickEvent::class.java))).thenThrow(RuntimeException("DB failure"))
+        Mockito.`when`(clickEventRepository.save(anyClickEvent())).thenThrow(RuntimeException("DB failure"))
 
         // Act & Assert
         val exception = assertThrows<RuntimeException> {
@@ -61,6 +66,6 @@ class ClickEventConsumerTest {
         }
         
         assertThat(exception.message).isEqualTo("DB failure")
-        Mockito.verify(clickEventRepository).save(org.mockito.ArgumentMatchers.any(com.linkforge.model.ClickEvent::class.java))
+        Mockito.verify(clickEventRepository).save(anyClickEvent())
     }
 }

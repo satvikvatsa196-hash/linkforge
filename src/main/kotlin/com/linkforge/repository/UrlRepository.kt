@@ -10,10 +10,6 @@ interface UrlRepository : JpaRepository<Url, Long> {
     fun findByOriginalUrl(originalUrl: String): Url?
     fun findByInactiveFalseAndExpiresAtBefore(date: java.time.OffsetDateTime): List<Url>
 
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.data.jpa.repository.Query("UPDATE Url u SET u.clicksCount = u.clicksCount + 1 WHERE u.shortCode = :shortCode")
-    fun incrementClickCount(@org.springframework.data.repository.query.Param("shortCode") shortCode: String)
-
     @org.springframework.data.jpa.repository.Query(value = "SELECT nextval('urls_id_seq')", nativeQuery = true)
     fun getNextSequenceValue(): Long
 

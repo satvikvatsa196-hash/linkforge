@@ -138,13 +138,12 @@ class UrlService(
         return toResponse(updatedUrl)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getOriginalUrl(shortCode: String): UrlRedirectInfo {
         // Check cache first
         val cachedUrl = getFromCache(shortCode)
         if (cachedUrl != null) {
             log.info("Cache hit for short code: {}", shortCode)
-            urlRepository.incrementClickCount(shortCode)
             return cachedUrl
         }
         
@@ -161,10 +160,6 @@ class UrlService(
             throw UrlExpiredException("Short URL has expired")
         }
 
-        // Increment click count
-        url.clicksCount += 1
-        urlRepository.save(url)
-        
         // Populate cache on miss
         putInCache(shortCode, url.originalUrl, url.id, url.expiresAt)
         

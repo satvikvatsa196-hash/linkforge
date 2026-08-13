@@ -34,6 +34,6 @@ class UrlCleanupService(
         
         urlRepository.saveAll(expiredUrls)
         
-        log.info("Cleaned up \${expiredUrls.size} expired URLs")
+        log.info("Cleaned up ${expiredUrls.size} expired URLs")
     }
 }
