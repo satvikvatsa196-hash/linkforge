@@ -22,10 +22,17 @@ class UrlAnalyticsController(
 ) {
 
     @GetMapping("/{shortCode}/analytics")
-    @Operation(summary = "Get analytics for a shortened URL", description = "Returns click statistics for the given short code")
-    fun getAnalytics(@PathVariable shortCode: String): ResponseEntity<UrlAnalyticsResponse> {
-        val url = urlRepository.findByShortCode(shortCode)
-            ?: throw UrlNotFoundException("Short URL not found for code: $shortCode")
+    @Operation(summary = "Get analytics for a shortened URL", description = "Returns click statistics for the given short code and optional domain")
+    fun getAnalytics(
+        @PathVariable shortCode: String,
+        @RequestParam(required = false) domain: String?
+    ): ResponseEntity<UrlAnalyticsResponse> {
+        
+        val url = if (domain.isNullOrBlank()) {
+            urlRepository.findByShortCodeAndDomainIsNull(shortCode)
+        } else {
+            urlRepository.findByShortCodeAndDomain_Domain(shortCode, domain)
+        } ?: throw UrlNotFoundException("Short URL not found for code: $shortCode and domain: $domain")
 
         val totalClicks = clickEventRepository.countByUrlId(url.id)
         val firstClick = clickEventRepository.findFirstByUrlIdOrderByClickedAtAsc(url.id)?.clickedAt

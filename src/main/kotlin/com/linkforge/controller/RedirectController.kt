@@ -22,7 +22,8 @@ class RedirectController(
     @GetMapping("/{shortCode}")
     @Operation(summary = "Redirect to original URL", description = "Looks up the short code and returns a 302 Found redirect to the original URL")
     fun redirect(@PathVariable shortCode: String, request: HttpServletRequest): ResponseEntity<Void> {
-        val redirectInfo = urlService.getOriginalUrl(shortCode)
+        val domain = request.serverName
+        val redirectInfo = urlService.getOriginalUrl(shortCode, domain)
         
         clickTrackingService.recordClick(redirectInfo.id, shortCode, request)
         

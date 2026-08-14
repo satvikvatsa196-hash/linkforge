@@ -7,5 +7,6 @@ data class UrlShortenResponse(
     val originalUrl: String,
     val shortUrl: String, // Full short URL like http://localhost:8080/{shortCode}
     val createdAt: OffsetDateTime,
-    val expiresAt: OffsetDateTime? = null
+    val expiresAt: OffsetDateTime? = null,
+    val domain: String? = null
 )

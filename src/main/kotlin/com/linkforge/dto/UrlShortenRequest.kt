@@ -22,5 +22,9 @@ data class UrlShortenRequest(
     @field:Pattern(regexp = "^[a-zA-Z0-9-_]+$", message = "Alias can only contain letters, numbers, hyphens, and underscores")
     @field:Size(min = 3, max = 50, message = "Alias must be between 3 and 50 characters")
     @Schema(description = "Optional custom alias (3-50 chars, alphanumeric/hyphens/underscores)", example = "my-link")
-    val alias: String? = null
+    val alias: String? = null,
+
+    @field:Pattern(regexp = "^[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}${'$'}", message = "Invalid domain format")
+    @Schema(description = "Optional custom domain", example = "go.example.com")
+    val domain: String? = null
 )

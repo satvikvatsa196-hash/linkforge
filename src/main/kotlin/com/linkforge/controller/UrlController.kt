@@ -29,8 +29,9 @@ class UrlController(
 
     @GetMapping("/{shortCode}/qr")
     @Operation(summary = "Get QR code", description = "Generates a QR code for the shortened URL")
-    fun getQrCode(@PathVariable shortCode: String): ResponseEntity<ByteArray> {
-        val fullUrl = urlService.getUrlForQr(shortCode)
+    fun getQrCode(@PathVariable shortCode: String, request: jakarta.servlet.http.HttpServletRequest): ResponseEntity<ByteArray> {
+        val domain = request.serverName
+        val fullUrl = urlService.getUrlForQr(shortCode, domain)
         val qrCodeImage = qrCodeService.generateQrCode(fullUrl)
         
         return ResponseEntity.ok()

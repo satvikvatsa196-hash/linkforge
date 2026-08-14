@@ -13,8 +13,13 @@ class Url(
     @Column(name = "original_url", nullable = false, length = 2048)
     var originalUrl: String,
 
-    @Column(name = "short_code", nullable = false, unique = true, length = 50)
+    @Column(name = "short_code", nullable = false, length = 50)
     var shortCode: String,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "domain_id")
+    var domain: Domain? = null,
+
 
     @Column(name = "created_at", updatable = false)
     val createdAt: OffsetDateTime = OffsetDateTime.now(),

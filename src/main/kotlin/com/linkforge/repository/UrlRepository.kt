@@ -6,7 +6,11 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface UrlRepository : JpaRepository<Url, Long> {
+    fun findByShortCodeAndDomainIsNull(shortCode: String): Url?
+    fun findByShortCodeAndDomain_Domain(shortCode: String, domain: String): Url?
     fun findByShortCode(shortCode: String): Url?
+    fun findByOriginalUrlAndDomainIsNull(originalUrl: String): Url?
+    fun findByOriginalUrlAndDomain_Domain(originalUrl: String, domain: String): Url?
     fun findByOriginalUrl(originalUrl: String): Url?
     fun findByInactiveFalseAndExpiresAtBefore(date: java.time.OffsetDateTime): List<Url>
 
@@ -24,4 +28,30 @@ interface UrlRepository : JpaRepository<Url, Long> {
         @org.springframework.data.repository.query.Param("shortCode") shortCode: String,
         @org.springframework.data.repository.query.Param("expiresAt") expiresAt: java.time.OffsetDateTime? = null
     )
+
+    @org.springframework.data.jpa.repository.Query(value = "SELECT COUNT(*) FROM urls WHERE created_at <= :to", nativeQuery = true)
+    fun countUrlsCreatedBefore(@org.springframework.data.repository.query.Param("to") to: java.time.OffsetDateTime): Long
+
+    @org.springframework.data.jpa.repository.Query(
+        value = """
+            SELECT u.id as urlId, u.short_code as shortCode, u.original_url as originalUrl, COUNT(c.id) as clicks
+            FROM urls u
+            JOIN click_events c ON u.id = c.url_id
+            WHERE c.clicked_at >= :from AND c.clicked_at <= :to
+            GROUP BY u.id, u.short_code, u.original_url
+            ORDER BY clicks DESC
+        """,
+        countQuery = """
+            SELECT COUNT(DISTINCT u.id) 
+            FROM urls u 
+            JOIN click_events c ON u.id = c.url_id 
+            WHERE c.clicked_at >= :from AND c.clicked_at <= :to
+        """,
+        nativeQuery = true
+    )
+    fun getTopUrlsByClicks(
+        @org.springframework.data.repository.query.Param("from") from: java.time.OffsetDateTime,
+        @org.springframework.data.repository.query.Param("to") to: java.time.OffsetDateTime,
+        pageable: org.springframework.data.domain.Pageable
+    ): org.springframework.data.domain.Page<com.linkforge.dto.UrlPerformanceProjection>
 }

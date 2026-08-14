@@ -23,6 +23,10 @@ spring:
 app:
   cache:
     ttl: ${CACHE_TTL:24h}
+  rate-limit:
+    anonymous:
+      requests: ${RATE_LIMIT_ANONYMOUS_REQUESTS:60}
+      window-ms: ${RATE_LIMIT_ANONYMOUS_WINDOW_MS:60000}
   reserved-aliases: api,health,actuator,swagger,docs
   qr:
     width: ${QR_WIDTH:250}
