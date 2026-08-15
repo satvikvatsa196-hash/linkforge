@@ -12,7 +12,8 @@ import java.util.UUID
 class RateLimitService(
     private val redisTemplate: StringRedisTemplate,
     @Value("\${app.rate-limit.anonymous.requests:60}") private val maxRequests: Int,
-    @Value("\${app.rate-limit.anonymous.window-ms:60000}") private val windowMs: Long
+    @Value("\${app.rate-limit.anonymous.window-ms:60000}") private val windowMs: Long,
+    private val metricsTracker: com.linkforge.util.MetricsTracker
 ) {
     private val logger = LoggerFactory.getLogger(RateLimitService::class.java)
 
@@ -61,6 +62,7 @@ class RateLimitService(
             )
 
             if (result != null && result > 0L) {
+                metricsTracker.recordRateLimitRejection()
                 RateLimitResult(allowed = false, retryAfterMs = result)
             } else {
                 RateLimitResult(allowed = true, retryAfterMs = 0)

@@ -35,7 +35,8 @@ class UrlService(
     private val redisTemplate: StringRedisTemplate,
     @Value("\${app.base-url:http://localhost:8080}") private val baseUrl: String,
     @Value("\${app.cache.ttl:24h}") private val cacheTtl: Duration,
-    @Value("\${app.reserved-aliases:api,health,actuator,swagger,docs}") private val reservedAliases: List<String>
+    @Value("\${app.reserved-aliases:api,health,actuator,swagger,docs}") private val reservedAliases: List<String>,
+    private val metricsTracker: com.linkforge.util.MetricsTracker
 ) {
     
     private val log = LoggerFactory.getLogger(UrlService::class.java)
@@ -135,6 +136,7 @@ class UrlService(
             val updatedUrl = urlRepository.save(url)
             log.info("Created new short URL with alias: {} -> {} on domain {}", originalUrl, alias, customDomain?.domain)
             putInCache(alias, customDomain?.domain, originalUrl, updatedUrl.id, expiresAt)
+            metricsTracker.recordUrlCreated()
             return toResponse(updatedUrl)
         }
 
@@ -163,33 +165,23 @@ class UrlService(
 
         log.info("Created new short URL: {} -> {}", originalUrl, updatedUrl.shortCode)
         putInCache(updatedUrl.shortCode, customDomain?.domain, originalUrl, updatedUrl.id, expiresAt)
+        metricsTracker.recordUrlCreated()
         
         return toResponse(updatedUrl)
     }
 
-    @Transactional(readOnly = true)
     fun getOriginalUrl(shortCode: String, domain: String? = null): UrlRedirectInfo {
         val actualDomain = if (domain == defaultHost) null else domain
         
         val cachedUrl = getFromCache(shortCode, actualDomain)
         if (cachedUrl != null) {
-            log.info("Cache hit for short code: {} on domain {}", shortCode, actualDomain)
+            log.debug("Cache hit for short code: {} on domain {}", shortCode, actualDomain)
+            metricsTracker.recordCacheHit()
             return cachedUrl
         }
+        metricsTracker.recordCacheMiss()
         
-        val url = if (actualDomain.isNullOrBlank()) {
-            urlRepository.findByShortCodeAndDomainIsNull(shortCode)
-        } else {
-            urlRepository.findByShortCodeAndDomain_Domain(shortCode, actualDomain)
-        } ?: throw UrlNotFoundException("Short URL not found")
-
-        if (url.inactive || (url.domain != null && !url.domain!!.active)) {
-            throw UrlNotFoundException("Short URL or domain is inactive")
-        }
-
-        if (url.expiresAt != null && url.expiresAt!!.isBefore(OffsetDateTime.now())) {
-            throw UrlExpiredException("Short URL has expired")
-        }
+        val url = findValidUrlEntity(shortCode, actualDomain)
 
         putInCache(shortCode, actualDomain, url.originalUrl, url.id, url.expiresAt)
         return UrlRedirectInfo(url.id, url.originalUrl)
@@ -204,19 +196,7 @@ class UrlService(
     fun getUrlForQr(shortCode: String, domain: String? = null): String {
         val actualDomain = if (domain == defaultHost) null else domain
         
-        val url = if (actualDomain.isNullOrBlank()) {
-            urlRepository.findByShortCodeAndDomainIsNull(shortCode)
-        } else {
-            urlRepository.findByShortCodeAndDomain_Domain(shortCode, actualDomain)
-        } ?: throw UrlNotFoundException("Short URL not found")
-
-        if (url.inactive || (url.domain != null && !url.domain!!.active)) {
-            throw UrlNotFoundException("Short URL or domain is inactive")
-        }
-
-        if (url.expiresAt != null && url.expiresAt!!.isBefore(OffsetDateTime.now())) {
-            throw UrlExpiredException("Short URL has expired")
-        }
+        val url = findValidUrlEntity(shortCode, actualDomain)
 
         val prefix = if (actualDomain.isNullOrBlank()) baseUrl else "http://$actualDomain"
         return "$prefix/$shortCode"
@@ -242,5 +222,23 @@ class UrlService(
         } catch (e: Exception) {
             false
         }
+    }
+
+    private fun findValidUrlEntity(shortCode: String, domain: String?): Url {
+        val url = if (domain.isNullOrBlank()) {
+            urlRepository.findByShortCodeAndDomainIsNull(shortCode)
+        } else {
+            urlRepository.findByShortCodeAndDomain_Domain(shortCode, domain)
+        } ?: throw UrlNotFoundException("Short URL not found")
+
+        if (url.inactive || (url.domain != null && !url.domain!!.active)) {
+            throw UrlNotFoundException("Short URL or domain is inactive")
+        }
+
+        if (url.expiresAt != null && url.expiresAt!!.isBefore(OffsetDateTime.now())) {
+            throw UrlExpiredException("Short URL has expired")
+        }
+        
+        return url
     }
 }

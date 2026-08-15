@@ -12,30 +12,34 @@ import java.time.OffsetDateTime
 @Service
 class ClickTrackingService(
     private val rabbitTemplate: RabbitTemplate,
-    private val ipHashUtil: IpHashUtil
+    private val ipHashUtil: IpHashUtil,
+    private val metricsTracker: com.linkforge.util.MetricsTracker
 ) {
     private val log = LoggerFactory.getLogger(ClickTrackingService::class.java)
 
     fun recordClick(urlId: Long, shortCode: String, request: HttpServletRequest) {
-        try {
-            val ipAddress = getClientIp(request)
-            val ipHash = ipHashUtil.hashIp(ipAddress)
-            val userAgent = request.getHeader("User-Agent")?.take(512)
-            val referrer = request.getHeader("Referer")?.take(512)
+        val ipAddress = getClientIp(request)
+        val userAgent = request.getHeader("User-Agent")?.take(512)
+        val referrer = request.getHeader("Referer")?.take(512)
 
-            val event = ClickEventMessage(
-                urlId = urlId,
-                shortCode = shortCode,
-                timestamp = OffsetDateTime.now(),
-                ipHash = ipHash,
-                userAgent = userAgent,
-                referrer = referrer
-            )
-            
-            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY, event)
-            log.debug("Published click event for shortCode: {}", shortCode)
-        } catch (e: Exception) {
-            log.error("Failed to publish click event for shortCode: $shortCode", e)
+        java.util.concurrent.CompletableFuture.runAsync {
+            try {
+                val ipHash = ipHashUtil.hashIp(ipAddress)
+                val event = ClickEventMessage(
+                    urlId = urlId,
+                    shortCode = shortCode,
+                    timestamp = OffsetDateTime.now(),
+                    ipHash = ipHash,
+                    userAgent = userAgent,
+                    referrer = referrer
+                )
+                
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME, RabbitMQConfig.ROUTING_KEY, event)
+                log.debug("Published click event for shortCode: {}", shortCode)
+            } catch (e: Exception) {
+                metricsTracker.recordRabbitMqFailure()
+                log.error("Failed to publish click event for shortCode: $shortCode", e)
+            }
         }
     }
 

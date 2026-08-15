@@ -11,7 +11,8 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ClickEventConsumer(
-    private val clickEventRepository: ClickEventRepository
+    private val clickEventRepository: ClickEventRepository,
+    private val metricsTracker: com.linkforge.util.MetricsTracker
 ) {
     private val log = LoggerFactory.getLogger(ClickEventConsumer::class.java)
 
@@ -29,6 +30,7 @@ class ClickEventConsumer(
         )
         
         clickEventRepository.save(clickEvent)
+        metricsTracker.recordAnalyticsEventProcessed()
         log.debug("Successfully saved click event for shortCode: {}", message.shortCode)
     }
 }

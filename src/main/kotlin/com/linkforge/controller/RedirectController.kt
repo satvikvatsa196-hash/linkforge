@@ -16,20 +16,31 @@ import java.net.URI
 @Tag(name = "URL Redirection", description = "Handles redirection from short code to original URL")
 class RedirectController(
     private val urlService: UrlService,
-    private val clickTrackingService: ClickTrackingService
+    private val clickTrackingService: ClickTrackingService,
+    private val metricsTracker: com.linkforge.util.MetricsTracker
 ) {
 
     @GetMapping("/{shortCode}")
     @Operation(summary = "Redirect to original URL", description = "Looks up the short code and returns a 302 Found redirect to the original URL")
     fun redirect(@PathVariable shortCode: String, request: HttpServletRequest): ResponseEntity<Void> {
-        val domain = request.serverName
-        val redirectInfo = urlService.getOriginalUrl(shortCode, domain)
-        
-        clickTrackingService.recordClick(redirectInfo.id, shortCode, request)
-        
-        return ResponseEntity
-            .status(HttpStatus.FOUND)
-            .location(URI.create(redirectInfo.originalUrl))
-            .build()
+        metricsTracker.recordRedirectRequest()
+        try {
+            val domain = request.serverName
+            val redirectInfo = urlService.getOriginalUrl(shortCode, domain)
+            
+            clickTrackingService.recordClick(redirectInfo.id, shortCode, request)
+            
+            metricsTracker.recordRedirectSuccess()
+            return ResponseEntity
+                .status(HttpStatus.FOUND)
+                .location(URI.create(redirectInfo.originalUrl))
+                .build()
+        } catch (e: com.linkforge.exception.UrlNotFoundException) {
+            metricsTracker.recordRedirectNotFound()
+            throw e
+        } catch (e: com.linkforge.exception.UrlExpiredException) {
+            metricsTracker.recordRedirectExpired()
+            throw e
+        }
     }
 }

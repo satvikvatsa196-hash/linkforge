@@ -57,12 +57,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,metrics,info
   endpoint:
     health:
       show-details: always
 
 logging:
+  pattern:
+    level: "%5p [reqId=%X{requestId}]"
   level:
     root: INFO
     com.linkforge: DEBUG

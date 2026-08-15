@@ -6,7 +6,9 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface UrlRepository : JpaRepository<Url, Long> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = ["domain"])
     fun findByShortCodeAndDomainIsNull(shortCode: String): Url?
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = ["domain"])
     fun findByShortCodeAndDomain_Domain(shortCode: String, domain: String): Url?
     fun findByShortCode(shortCode: String): Url?
     fun findByOriginalUrlAndDomainIsNull(originalUrl: String): Url?
